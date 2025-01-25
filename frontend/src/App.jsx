@@ -1,28 +1,56 @@
-import React, { useState } from 'react';
+// App.jsx
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import PredictionForm from './components/PredictionForm';
 import PredictionResult from './components/PredictionResult';
-import { makePrediction } from './services/api';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 
 const App = () => {
   const [prediction, setPrediction] = useState(null);
+  const [error, setError] = useState(null);
 
   const handlePredict = async (matchData) => {
     try {
-      const data = await makePrediction(matchData); // API call or prediction function
-      setPrediction(data);
-    } catch (error) {
-      console.error('Error making prediction:', error);
-      setPrediction({ error: 'Failed to make prediction. Please try again.' });
+      const response = await axios.post('/api/predict', {
+        league_id: '1', // Premier League
+        home_team: matchData.team1,
+        away_team: matchData.team2
+      });
+
+      setPrediction({
+        winner: response.data.home_win > response.data.away_win 
+          ? matchData.team1 
+          : matchData.team2,
+        probability: Math.max(response.data.home_win, response.data.away_win),
+        home_team_stats: {
+          avg_goals_scored: response.data.home_goals_avg,
+          avg_goals_conceded: response.data.home_conceded_avg,
+          win_rate: response.data.home_win_rate
+        },
+        away_team_stats: {
+          avg_goals_scored: response.data.away_goals_avg,
+          avg_goals_conceded: response.data.away_conceded_avg,
+          win_rate: response.data.away_win_rate
+        }
+      });
+      setError(null);
+    } catch (err) {
+      setError('Prediction failed. Please try again.');
+      setPrediction(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="container mx-auto px-4">
-        <h1 className="text-4xl font-bold text-center mb-8">Football Match Predictor</h1>
-        <PredictionForm onPredict={handlePredict} />
-        <PredictionResult prediction={prediction} />
-      </div>
+    <div className="container mx-auto p-6">
+      <Card className="max-w-lg mx-auto">
+        <CardHeader>
+          <CardTitle>Football Match Predictor</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PredictionForm onPredict={handlePredict} />
+          {prediction && <PredictionResult prediction={prediction} />}
+        </CardContent>
+      </Card>
     </div>
   );
 };
