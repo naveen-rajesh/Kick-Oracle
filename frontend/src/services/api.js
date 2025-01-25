@@ -1,25 +1,25 @@
-const API_BASE_URL = 'http://localhost:5000';
+import axios from 'axios';
 
-export const fetchLeagues = async () => {
-  const response = await fetch(`${API_BASE_URL}/leagues`);
-  if (!response.ok) throw new Error('Failed to fetch leagues');
-  return response.json();
-};
+const BASE_URL = 'http://localhost:5000/api';
 
-export const fetchTeams = async (leagueId) => {
-  const response = await fetch(`${API_BASE_URL}/teams/${leagueId}`);
-  if (!response.ok) throw new Error('Failed to fetch teams');
-  return response.json();
-};
+export const PredictionService = {
+  async predictMatch(matchData) {
+    try {
+      const response = await axios.post(`${BASE_URL}/predict`, matchData);
+      return response.data;
+    } catch (error) {
+      console.error('Prediction error:', error);
+      throw error;
+    }
+  },
 
-export const makePrediction = async (matchData) => {
-  const response = await fetch(`${API_BASE_URL}/predict`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(matchData),
-  });
-  if (!response.ok) throw new Error('Failed to make prediction');
-  return response.json();
+  async getLeagues() {
+    const response = await axios.get(`${BASE_URL}/leagues`);
+    return response.data;
+  },
+
+  async getTeams(leagueId) {
+    const response = await axios.get(`${BASE_URL}/teams/${leagueId}`);
+    return response.data;
+  }
 };
