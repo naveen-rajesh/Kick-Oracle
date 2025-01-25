@@ -1,60 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { PredictionService } from '../services/api';
+import TeamSelector from './TeamSelector';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
-import TeamSelector from './TeamSelector'; // Assuming you have a TeamSelector component
-
-const teamsByLeague = {
-  '1': [ // Premier League
-    'Arsenal', 'Aston Villa', 'Bournemouth', 'Brentford', 'Brighton', 'Chelsea', 
-    'Crystal Palace', 'Everton', 'Fulham', 'Leicester City', 'Liverpool', 
-    'Manchester City', 'Manchester Utd', 'Newcastle Ut', 'Nott\'ham Forest', 
-    'Southampton', 'Tottenham', 'West Ham', 'Wolves'
-  ],
-  '2': [ // La Liga
-    'Alavés', 'Athletic Bilbao', 'Atlético Madrid', 'Barcelona', 'Cádiz', 'Celta Vigo', 
-    'Eibar', 'Elche', 'Espanyol', 'Getafe', 'Granada', 'Levante', 'Real Betis', 
-    'Real Madrid', 'Real Sociedad', 'Sevilla', 'Valencia', 'Villarreal'
-  ],
-  '3': [ // Serie A
-    'Atalanta', 'Bologna', 'Cagliari', 'Empoli', 'Fiorentina', 'Genoa', 'Inter Milan', 
-    'Juventus', 'Lazio', 'Milan', 'Napoli', 'Roma', 'Salernitana', 'Sampdoria', 'Sassuolo', 
-    'Spezia', 'Torino', 'Udinese'
-  ],
-  '4': [ // Bundesliga
-    'Augsburg', 'Bayer Leverkusen', 'Bayern Munich', 'Borussia Dortmund', 'Borussia Mönchengladbach', 
-    'Cologne', 'Eintracht Frankfurt', 'Freiburg', 'Hoffenheim', 'Mainz', 'RB Leipzig', 
-    'Stuttgart', 'Wolfsburg'
-  ]
-};
 
 const PredictionForm = ({ onPredict }) => {
+  const [leagues, setLeagues] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [selectedLeague, setSelectedLeague] = useState('');
-  const [selectedTeam1, setSelectedTeam1] = useState('');
-  const [selectedTeam2, setSelectedTeam2] = useState('');
+  const [selectedHomeTeam, setSelectedHomeTeam] = useState('');
+  const [selectedAwayTeam, setSelectedAwayTeam] = useState('');
 
-  const handleLeagueChange = (leagueId) => {
-    setSelectedLeague(leagueId);
-    setSelectedTeam1(''); // Clear selected teams when league changes
-    setSelectedTeam2('');
-  };
+  useEffect(() => {
+    const fetchLeagues = async () => {
+      try {
+        const leagueData = await PredictionService.getLeagues();
+        setLeagues(leagueData);
+      } catch (error) {
+        console.error('Failed to fetch leagues', error);
+      }
+    };
+    fetchLeagues();
+  }, []);
 
-  const handleTeam1Change = (team) => {
-    setSelectedTeam1(team);
-  };
+  useEffect(() => {
+    const fetchTeams = async () => {
+      if (selectedLeague) {
+        try {
+          const teamData = await PredictionService.getTeams(selectedLeague);
+          setTeams(teamData);
+          setSelectedHomeTeam('');
+          setSelectedAwayTeam('');
+        } catch (error) {
+          console.error('Failed to fetch teams', error);
+        }
+      }
+    };
+    fetchTeams();
+  }, [selectedLeague]);
 
-  const handleTeam2Change = (team) => {
-    setSelectedTeam2(team);
-  };
-
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    if (selectedTeam1 && selectedTeam2) {
-      const matchData = {
-        team1: selectedTeam1,
-        team2: selectedTeam2,
-      };
-      onPredict(matchData);
-    } else {
-      alert("Please select both teams.");
+    if (selectedHomeTeam && selectedAwayTeam) {
+      try {
+        const prediction = await PredictionService.predictMatch({
+          leagueId: selectedLeague,
+          homeTeam: selectedHomeTeam,
+          awayTeam: selectedAwayTeam
+        });
+        onPredict(prediction);
+      } catch (error) {
+        console.error('Prediction failed', error);
+      }
     }
   };
 
@@ -62,41 +58,41 @@ const PredictionForm = ({ onPredict }) => {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-gray-700">Select League</label>
-        <Select value={selectedLeague} onValueChange={handleLeagueChange}>
+        <Select value={selectedLeague} onValueChange={setSelectedLeague}>
           <SelectTrigger>
             <SelectValue placeholder="Select League" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="1">Premier League</SelectItem>
-            <SelectItem value="2">La Liga</SelectItem>
-            <SelectItem value="3">Serie A</SelectItem>
-            <SelectItem value="4">Bundesliga</SelectItem>
+            {leagues.map(league => (
+              <SelectItem key={league.id} value={league.id}>
+                {league.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
-
       {selectedLeague && (
         <>
           <TeamSelector
-            label="Team 1"
-            value={selectedTeam1}
-            onValueChange={handleTeam1Change}
-            teams={teamsByLeague[selectedLeague]}
+            label="Home Team"
+            value={selectedHomeTeam}
+            onValueChange={setSelectedHomeTeam}
+            teams={teams}
           />
           <TeamSelector
-            label="Team 2"
-            value={selectedTeam2}
-            onValueChange={handleTeam2Change}
-            teams={teamsByLeague[selectedLeague]}
+            label="Away Team"
+            value={selectedAwayTeam}
+            onValueChange={setSelectedAwayTeam}
+            teams={teams.filter(team => team !== selectedHomeTeam)}
           />
         </>
       )}
-
       <button
         type="submit"
-        className="w-full bg-black text-white py-1 px-400 rounded-lg hover:bg-gray-800"
-        >
-        Predict
+        className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800"
+        disabled={!selectedHomeTeam || !selectedAwayTeam}
+      >
+        Predict Match
       </button>
     </form>
   );
