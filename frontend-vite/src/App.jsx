@@ -6,6 +6,9 @@ import Loader from './components/loading';
 import WinProbabilityBar from './components/WinProbabilityBar';
 import StatCard from './components/StatCard'; // Import StatCard
 
+// Use an environment variable for the API base URL
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
+
 const leagues = [
   { id: '1', name: 'Premier League', url: 'https://fbref.com/en/comps/9/Premier-League-Stats' },
   { id: '2', name: 'La Liga', url: 'https://fbref.com/en/comps/12/La-Liga-Stats' },
@@ -28,7 +31,7 @@ const App = () => {
         try {
           setLoading(true);
           const response = await axios.get(
-            `http://localhost:5000/api/teams?league=${encodeURIComponent(selectedLeague.url)}`
+            `${API_BASE_URL}/api/teams?league=${encodeURIComponent(selectedLeague.url)}`
           );
           setTeams(
             response.data.map((team, index) => ({
@@ -57,7 +60,7 @@ const App = () => {
 
     try {
       setLoading(true);
-      const response = await axios.post('http://localhost:5000/api/predict', {
+      const response = await axios.post(`${API_BASE_URL}/api/predict`, {
         team1: selectedTeams.team1,
         team2: selectedTeams.team2,
       });
@@ -107,7 +110,7 @@ const App = () => {
         <div className="flex justify-center">
           <button
             onClick={handlePredict}
-  className="px-6 py-2 rounded bg-black text-white font-bold transition duration-300 hover:bg-white hover:text-black "
+            className="px-6 py-2 rounded bg-black text-white font-bold transition duration-300 hover:bg-white hover:text-black"
           >
             Predict Match
           </button>
