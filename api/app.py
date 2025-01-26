@@ -98,6 +98,9 @@ def scrape_league_teams(league_url):
     
     except requests.RequestException:
         return []
+@app.route('/', methods=['GET'])
+def home():
+    return 'Football API'
 
 @app.route('/api/teams', methods=['GET'])
 def get_teams():
