@@ -7,7 +7,7 @@ import WinProbabilityBar from './components/WinProbabilityBar';
 import StatCard from './components/StatCard'; // Import StatCard
 
 // Use an environment variable for the API base URL
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const leagues = [
   { id: '1', name: 'Premier League', url: 'https://fbref.com/en/comps/9/Premier-League-Stats' },
@@ -23,7 +23,7 @@ const App = () => {
   const [selectedTeams, setSelectedTeams] = useState({ team1: null, team2: null });
   const [prediction, setPrediction] = useState(null);
   const [loading, setLoading] = useState(false);
-
+  // console.log(API_BASE_URL);
   // Fetch teams when the league changes
   useEffect(() => {
     const fetchTeams = async () => {
