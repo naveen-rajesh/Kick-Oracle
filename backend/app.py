@@ -1,174 +1,141 @@
-import random
-import requests
-from bs4 import BeautifulSoup
-import pandas as pd
-from datetime import datetime, timedelta
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import requests
+from bs4 import BeautifulSoup
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
 
-class MatchPredictor:
-    def __init__(self):
-        self.model = None
-
-    def train(self, match_data):
-        print("Training model with match data...")
-        self.model = {
-            'home_advantage': match_data['home_win'].mean(),
-            'total_matches': len(match_data)
-        }
-
-    def predict(self, home_team, away_team):
-        if not self.model:
-            return {'error': 'Model not trained'}
-        
-        home_win_prob = self.model['home_advantage']
-        draw_prob = 0.25
-        away_win_prob = 1 - home_win_prob - draw_prob
-
-        return {
-            'home_team': home_team,
-            'away_team': away_team,
-            'home_win': home_win_prob,
-            'draw': draw_prob,
-            'away_win': away_win_prob
-        }
-
-class FootballScraper:
-    def __init__(self):
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        self.base_url = 'https://www.flashscore.com'
-        self.leagues = {
-            '1': {'url': 'premier-league/2-england', 'name': 'Premier League'},
-            '2': {'url': 'la-liga/7-spain', 'name': 'La Liga'},
-            '3': {'url': 'serie-a/13-italy', 'name': 'Serie A'},
-            '4': {'url': 'bundesliga/30-germany', 'name': 'Bundesliga'}
-        }
-
-    def get_league_data(self, league_id, days_back=90):
-        matches = []
-        if league_id not in self.leagues:
-            print(f"Invalid league ID: {league_id}")
-            return pd.DataFrame()
-
-        # Mock data generation
-        teams = self.get_league_teams(league_id)
-        for _ in range(50):
-            home_team = random.choice(teams)
-            away_team = random.choice([t for t in teams if t != home_team])
-            match_date = datetime.now() - timedelta(days=random.randint(1, days_back))
-            home_score = random.randint(0, 3)
-            away_score = random.randint(0, 3)
-            matches.append({
-                'date': match_date,
-                'league': league_id,
-                'league_name': self.leagues[league_id]['name'],
-                'home_team': home_team,
-                'away_team': away_team,
-                'home_score': home_score,
-                'away_score': away_score,
-                'home_win': 1 if home_score > away_score else 0
-            })
-        return pd.DataFrame(matches)
-
-    def get_league_teams(self, league_id):
-        teams_map = {
-            '1': [ # Premier League
-                'Arsenal', 'Aston Villa', 'Bournemouth', 'Brentford', 'Brighton', 
-                'Chelsea', 'Crystal Palace', 'Everton', 'Fulham', 'Liverpool',
-                'Manchester City', 'Manchester Utd', 'Newcastle Ut', 
-                'Tottenham', 'West Ham'
-            ],
-            '2': [ # La Liga
-                'Atletico Madrid', 'Barcelona', 'Real Madrid', 
-                'Sevilla', 'Real Sociedad', 'Valencia'
-            ],
-            '3': [ # Serie A
-                'Juventus', 'Inter Milan', 'AC Milan', 'Napoli', 
-                'Roma', 'Lazio'
-            ],
-            '4': [ # Bundesliga
-                'Bayern Munich', 'Borussia Dortmund', 'RB Leipzig', 
-                'Bayer Leverkusen', 'Wolfsburg'
-            ]
-        }
-        return teams_map.get(league_id, [])
-
-class LeaguePredictor:
-    def __init__(self):
-        self.predictors = {}
-        self.scraper = FootballScraper()
-    
-    def train_league(self, league_id):
-        match_data = self.scraper.get_league_data(league_id)
-        if not match_data.empty:
-            predictor = MatchPredictor()
-            predictor.train(match_data)
-            self.predictors[league_id] = {
-                'predictor': predictor,
-                'teams': self.scraper.get_league_teams(league_id)
-            }
-            return True
-        return False
-
-    def get_leagues(self):
-        return [
-            {'id': k, 'name': v['name']} 
-            for k, v in self.scraper.leagues.items()
-        ]
-
-    def get_teams(self, league_id):
-        if league_id not in self.predictors:
-            self.train_league(league_id)
-        return self.predictors.get(league_id, {}).get('teams', [])
-
-    def predict(self, league_id, home_team, away_team):
-        if league_id not in self.predictors:
-            if not self.train_league(league_id):
-                return {'error': 'League data not available'}
-        
-        predictor = self.predictors[league_id]['predictor']
-        prediction = predictor.predict(home_team, away_team)
-        
-        # Add supplementary stats
-        prediction.update({
-            'home_goals_avg': random.uniform(1.0, 3.0),
-            'home_conceded_avg': random.uniform(0.5, 2.0),
-            'home_win_rate': prediction['home_win'],
-            'away_goals_avg': random.uniform(1.0, 3.0),
-            'away_conceded_avg': random.uniform(0.5, 2.0),
-            'away_win_rate': prediction['away_win']
-        })
-        
-        return prediction
-
-# Flask Application
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}})
+CORS(app)
 
-predictor = LeaguePredictor()
+LEAGUES = {
+    '1': ('Premier League', 'https://fbref.com/en/comps/9/Premier-League-Stats'),
+    '2': ('La Liga', 'https://fbref.com/en/comps/12/La-Liga-Stats'),
+    '3': ('Serie A', 'https://fbref.com/en/comps/11/Serie-A-Stats'),
+    '4': ('Bundesliga', 'https://fbref.com/en/comps/20/Bundesliga-Stats'),
+    '5': ('Ligue 1', 'https://fbref.com/en/comps/13/Ligue-1-Stats')
+}
+
+class FootballPredictor:
+    def __init__(self):
+        self.model = RandomForestClassifier(n_estimators=100, random_state=42)
+        self.scaler = StandardScaler()
+        self.prepare_training_data()
+
+    def prepare_training_data(self):
+        # Simulated historical match data
+        data = {
+            'team_goals_scored': np.random.randint(0, 5, 1000),
+            'team_goals_conceded': np.random.randint(0, 3, 1000),
+            'opponent_goals_scored': np.random.randint(0, 5, 1000),
+            'home_advantage': np.random.rand(1000),
+            'team_ranking': np.random.randint(1, 20, 1000),
+            'match_result': np.random.choice([0, 1], 1000)  # Binary outcome: 0 (loss/draw), 1 (win)
+        }
+        df = pd.DataFrame(data)
+        
+        X = df.drop('match_result', axis=1)
+        y = df['match_result']
+        
+        X_scaled = self.scaler.fit_transform(X)
+        X_train, _, y_train, _ = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+        
+        self.model.fit(X_train, y_train)
+
+    def predict_match_outcome(self, team1_stats, team2_stats):
+        # Prepare input features as a DataFrame with the same column names
+        features = pd.DataFrame([{
+            'team_goals_scored': team1_stats['goals_scored'],
+            'team_goals_conceded': team1_stats['goals_conceded'],
+            'opponent_goals_scored': team2_stats['goals_scored'],
+            'home_advantage': team1_stats.get('home_advantage', 0.5),
+            'team_ranking': team1_stats.get('ranking', 10)
+        }])
+        
+        # Scale features
+        features_scaled = self.scaler.transform(features)
+        
+        # Predict probability
+        prediction = self.model.predict_proba(features_scaled)[0]
+        return prediction[1]  # Probability of team1 winning
+
+# Initialize predictor
+predictor = FootballPredictor()
+
+def scrape_league_teams(league_url):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    }
+    
+    try:
+        response = requests.get(league_url, headers=headers)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        teams = []
+        tables = soup.find_all('table')
+        for table in tables:
+            team_rows = table.find_all('tr')
+            for row in team_rows:
+                team_cell = row.find('td', {'data-stat': 'team'})
+                if team_cell and team_cell.text.strip():
+                    team_name = team_cell.text.strip()
+                    if team_name not in teams:
+                        teams.append(team_name)
+        
+        if not teams:
+            potential_teams = soup.find_all(string=lambda text: 
+                text and any(keyword in text for keyword in 
+                ['FC', 'United', 'City', 'Real', 'Athletic', 'Atletico', 'Madrid', 'Barcelona']))
+            teams = list(set(team.strip() for team in potential_teams if team.strip()))
+        
+        return teams
+    
+    except requests.RequestException:
+        return []
+
+@app.route('/api/teams', methods=['GET'])
+def get_teams():
+    league_url = request.args.get('league')
+    teams = scrape_league_teams(league_url)
+    return jsonify(teams)
 
 @app.route('/api/predict', methods=['POST'])
 def predict_match():
-    data = request.json
-    league_id = data.get('leagueId')
-    home_team = data.get('homeTeam')
-    away_team = data.get('awayTeam')
-
-    try:
-        prediction = predictor.predict(league_id, home_team, away_team)
-        return jsonify(prediction)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/leagues', methods=['GET'])
-def get_leagues():
-    return jsonify(predictor.get_leagues())
-
-@app.route('/api/teams/<league_id>', methods=['GET'])
-def get_teams(league_id):
-    return jsonify(predictor.get_teams(league_id))
+    # Simulate comprehensive team statistics
+    team1_stats = {
+        'goals_scored': np.random.randint(30, 70),
+        'goals_conceded': np.random.randint(20, 50),
+        'goal_difference': np.random.randint(-10, 30),
+        'home_advantage': 0.6,
+        'ranking': np.random.randint(1, 20),
+        'win_rate': np.random.uniform(0.4, 0.7)
+    }
+    
+    team2_stats = {
+        'goals_scored': np.random.randint(30, 70),
+        'goals_conceded': np.random.randint(20, 50),
+        'goal_difference': np.random.randint(-10, 30),
+        'home_advantage': 0.4,
+        'ranking': np.random.randint(1, 20),
+        'win_rate': np.random.uniform(0.4, 0.7)
+    }
+    
+    # ML-powered prediction
+    team1_win_prob = predictor.predict_match_outcome(team1_stats, team2_stats)
+    team2_win_prob = 1 - team1_win_prob
+    
+    return jsonify({
+        'team1Prob': team1_win_prob * 100,
+        'team2Prob': team2_win_prob * 100,
+        'team1Stats': team1_stats,
+        'team2Stats': team2_stats
+    })
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True)
