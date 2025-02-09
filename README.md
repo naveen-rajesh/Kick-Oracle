@@ -28,7 +28,7 @@
 ```bash
 # Clone the repository
 git clone https://github.com/naveen-rajesh/Kick-Oracle.git
-cd Kick-Oracle/backend
+cd Kick-Oracle/api
 
 # Create a virtual environment
 python -m venv venv
@@ -43,7 +43,7 @@ flask run
 
 ### Frontend Setup
 ```bash
-cd Kick-Oracle/frontend
+cd Kick-Oracle/frontend-vite
 
 # Install dependencies
 npm install
